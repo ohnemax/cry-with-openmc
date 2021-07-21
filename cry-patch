@@ -1,0 +1,88 @@
+diff -ruN cry_v1.7/src/cry_fort.cc cry_v1.7-context/src/cry_fort.cc
+--- cry_v1.7/src/cry_fort.cc	2012-03-25 20:47:27.000000000 +0200
++++ cry_v1.7-context/src/cry_fort.cc	2021-07-21 22:34:40.941335581 +0200
+@@ -59,7 +59,7 @@
+   CRYGenerator *gen;
+   double xoff0,yoff0,zoff0;
+ 
+-int cry_init_(double (*rng)(void) ) {
++int cry_init_(double (*rng)(void*) ) {
+ 
+ 
+   char *str;
+@@ -98,7 +98,7 @@
+ 
+   gen = new CRYGenerator( setup );
+ 
+-  setup->getUtils()->setRandomFunction(rng);
++  setup->getUtils()->setRandomFunctionWithContext(rng, nullptr);
+ 
+   xoff0= setup->param(CRYSetup::xoffset);
+   yoff0= setup->param(CRYSetup::yoffset);
+diff -ruN cry_v1.7/src/CRYSetup.h cry_v1.7-context/src/CRYSetup.h
+--- cry_v1.7/src/CRYSetup.h	2012-03-25 20:47:27.000000000 +0200
++++ cry_v1.7-context/src/CRYSetup.h	2021-07-21 22:32:04.718280973 +0200
+@@ -94,7 +94,8 @@
+   double param(CRYSetup::CRYParms parm) {return _parms[parm];}
+   void setParam(CRYSetup::CRYParms parm, double value) { _parms[parm]=value;}
+ 
+-  void setRandomFunction(double (*newFunc)(void)) {_utils->setRandomFunction(newFunc);}
++  // void setRandomFunction(double (*newFunc)(void)) {_utils->setRandomFunction(newFunc);}
++  void setRandomFunctionWithContext(double (*newFunc)(void*), void* newContext) {_utils->setRandomFunctionWithContext(newFunc, newContext);}
+ 
+   CRYData *getData(int altitude=0) {return _data[altitude];}
+   CRYUtils *getUtils() {return _utils;}
+diff -ruN cry_v1.7/src/CRYUtils.cc cry_v1.7-context/src/CRYUtils.cc
+--- cry_v1.7/src/CRYUtils.cc	2012-03-25 20:47:27.000000000 +0200
++++ cry_v1.7-context/src/CRYUtils.cc	2021-07-21 22:33:16.691685207 +0200
+@@ -44,7 +44,7 @@
+ 
+ CRYUtils::CRYUtils() {
+   rngdptr=0;
+-  setRandomFunction(tmpRandom);
++  setRandomFunctionWithContext(tmpRandom, nullptr);
+ }
+ 
+ std::string CRYUtils::removeTrailingSpaces(std::string input) {
+@@ -60,10 +60,11 @@
+ 
+ // until we get one from the transport coders
+ double CRYUtils::randomFlat(double min, double max) {
+-  return min+ (max-min)*((double)rngdptr());
++  // return min+ (max-min)*((double)rngdptr());
++  return min+ (max-min)*((double)rngdptr(context));
+ }
+ 
+-double CRYUtils::tmpRandom() {
++double CRYUtils::tmpRandom(void* ) {
+   static unsigned long int next = 1;
+  
+   next=next*1103515245+123345;
+diff -ruN cry_v1.7/src/CRYUtils.h cry_v1.7-context/src/CRYUtils.h
+--- cry_v1.7/src/CRYUtils.h	2012-03-25 20:47:27.000000000 +0200
++++ cry_v1.7-context/src/CRYUtils.h	2021-07-21 22:33:35.356052475 +0200
+@@ -67,15 +67,19 @@
+   // Interface to random number generator
+   // (use of external random number generators not yet implmented
+   double randomFlat(double min=0., double max=1.);
+-  static double tmpRandom();
+-  void setRandomFunction(double (*newFunc)(void)) { rngdptr=newFunc;}
+-
++  static double tmpRandom(void*);
++  // void setRandomFunction(double (*newFunc)(void)) { rngdptr=newFunc;}
++  void setRandomFunctionWithContext(double (*newFunc)(void*), void* newContext) {
++    rngdptr = newFunc;
++    context = newContext;
++  }
++  
+   //Keys for particle types -- enums defined in CRYParticle class
+   static std::string partName(CRYParticle::CRYId id);
+ 
+ private:
+-  double (*rngdptr)(void);
+-
++  double (*rngdptr)(void*);
++  void* context;
+ };
+ 
+ 
