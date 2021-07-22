@@ -15,10 +15,25 @@ public:
   mutable CRYSetup *setup;
   CRYGenerator *gen;
   mutable uint64_t* cryseed;
+  double xoffset;
+  double yoffset;
   double zoffset;
   std::vector<CRYParticle*> *vect; // vector of generated particles
 
   CustomSource(std::string parameters) {
+
+    int pos = parameters.find(' ');
+    xoffset = std::stod(parameters.substr(0, pos));
+    parameters.erase(0, pos + 1);
+    pos = parameters.find(' ');
+    yoffset = std::stod(parameters.substr(0, pos));
+    parameters.erase(0, pos + 1);    
+    pos = parameters.find(' ');
+    zoffset = std::stod(parameters.substr(0, pos));
+    parameters.erase(0, pos + 1);
+
+    // std::cout << xoffset << ", " << yoffset << ", " << zoffset << std::endl;
+    // std::cout << parameters;
     
     // std::cout << "Parameters: " << parameters << std::endl;
     setup = new CRYSetup(parameters, "./data");
@@ -30,7 +45,6 @@ public:
     vect = new std::vector<CRYParticle*>;
     vect->clear();
 
-    zoffset = 120;
   }
 
   
@@ -65,8 +79,8 @@ public:
 
     CRYParticle* p = (*vect)[0];
 
-    particle.r.x = p->x() * 100;
-    particle.r.y = p->y() * 100;
+    particle.r.x = p->x() * 100 + xoffset;
+    particle.r.y = p->y() * 100 + yoffset;
     particle.r.z = p->z() * 100 + zoffset;
     // particle.E = (*vect)[j]->ke() * 1e6;
     particle.u = {p->u(), p->v(), p->w()};
