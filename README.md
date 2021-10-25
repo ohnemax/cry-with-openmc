@@ -10,6 +10,7 @@ On a Linux system with gcc and cmake, and OpenMC's libraries/CMake settings inst
 * Clone the repository, enter the cloned folder
 * `mkdir build; cd build`
 * `cmake ../`
+* `make CRY-1.7`
 * `make`
 
 
