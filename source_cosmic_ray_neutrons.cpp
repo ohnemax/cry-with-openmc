@@ -86,17 +86,17 @@ public:
     //   std::cout << vect.size() << std::endl;
     // }
 
-    CRYParticle* p = vect[0];
+    CRYParticle* p = vect.back();
     double e = p->ke() * 1e6;
     if(discard) {
       while(e > cutoffenergy) {
         // std::cout << "Discarding particle, looking for particle below cutoff energy" << std::endl;
         delete p;
-        vect.erase(vect.begin());
+        vect.pop_back();
         if(vect.size() == 0) {
           gen->genEvent(&vect);
         }
-        p = vect[0];
+        p = vect.back();
         e = p->ke() * 1e6;
       }
     }
@@ -114,7 +114,7 @@ public:
     delete p;
     // std::cout << particle.E << std::endl;
     // std::cout << particle.r << std::endl;
-    vect.erase(vect.begin());
+    vect.pop_back();
     return particle;
 
   }
