@@ -27,5 +27,6 @@ set(LINK_LIBS ${CRY_LIBRARIES} ${LINK_LIBS})
 
 project(openmc_sources CXX)
 add_library(source SHARED source_cosmic_ray_neutrons.cpp)
+add_dependencies(source CRY-1.7)
 find_package(OpenMC REQUIRED HINTS /usr/local/lib)
 target_link_libraries(source OpenMC::libopenmc ${CRY_LIBRARIES})
