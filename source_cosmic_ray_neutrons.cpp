@@ -1,8 +1,11 @@
 #include <memory> // for unique_ptr
 
+#include <algorithm>
 #include <vector>
+#include <omp.h>
 
 #include "openmc/random_lcg.h"
+#include "openmc/output.h"
 #include "openmc/source.h"
 #include "openmc/particle.h"
 
@@ -63,60 +66,55 @@ public:
     return openmc::prn(cryseed);
   }
 
-  // openmc::SourceSite sample(uint64_t* seed)
+  CRYParticle* get_particle(double& energy) const
+  {
+    while (true) {
+      // If no more particles, generate more
+      if(vect.empty()) {
+        gen->genEvent(&vect);
+      }
+
+      // Get last particle on vector
+      CRYParticle* p = vect.back();
+      vect.pop_back();
+
+      double e = p->ke() * 1e6;
+      if (!discard) {
+        energy = std::min(e, cutoffenergy - 0.001);
+        return p;
+      } else if (e < cutoffenergy) {
+        energy = e;
+        return p;
+      } else {
+        delete p;
+      }
+    }
+  }
+
+
   openmc::SourceSite sample(uint64_t* seed) const
   {
-    cryseed = seed;
-    // std::cout << seed << " " << *cryseed << std::endl;
+    double E;
+    CRYParticle* p;
+#pragma omp critical(CRYGenEvent)
+    {
+      cryseed = seed;
+      p = this->get_particle(E);
+    }
 
     openmc::SourceSite particle;
-
-    // weight
     particle.particle = openmc::ParticleType::neutron;
     particle.wgt = 1.0;
     particle.delayed_group = 0;
-
-    if(vect.size() == 0) {
-      gen->genEvent(&vect);
-    }
-    // else {
-    //   std::cout << "use previous particle" << std::endl;
-    // }
-    // if(vect.size() > 1) {
-    //   std::cout << vect.size() << std::endl;
-    // }
-
-    CRYParticle* p = vect.back();
-    double e = p->ke() * 1e6;
-    if(discard) {
-      while(e > cutoffenergy) {
-        // std::cout << "Discarding particle, looking for particle below cutoff energy" << std::endl;
-        delete p;
-        vect.pop_back();
-        if(vect.size() == 0) {
-          gen->genEvent(&vect);
-        }
-        p = vect.back();
-        e = p->ke() * 1e6;
-      }
-    }
-    else {
-      if(e > cutoffenergy) {
-        e = cutoffenergy - 0.001; // be 1meV below cutoff energy
-      }
-    }
-    particle.E = e;
+    particle.surf_id = 0;
+    particle.E = E;
     particle.r.x = p->x() * 100 + xoffset;
     particle.r.y = p->y() * 100 + yoffset;
     particle.r.z = p->z() * 100 + zoffset;
     particle.u = {p->u(), p->v(), p->w()};
 
     delete p;
-    // std::cout << particle.E << std::endl;
-    // std::cout << particle.r << std::endl;
-    vect.pop_back();
     return particle;
-
   }
 
 };
