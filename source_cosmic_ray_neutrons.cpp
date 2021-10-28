@@ -1,8 +1,11 @@
 #include <memory> // for unique_ptr
 
+#include <algorithm>
 #include <vector>
+#include <omp.h>
 
 #include "openmc/random_lcg.h"
+#include "openmc/output.h"
 #include "openmc/source.h"
 #include "openmc/particle.h"
 
@@ -20,7 +23,7 @@ public:
   double zoffset;
   double cutoffenergy;
   bool discard;
-  std::vector<CRYParticle*> *vect; // vector of generated particles
+  mutable std::vector<CRYParticle*> vect; // vector of generated particles
 
   CustomSource(std::string parameters) {
 
@@ -40,7 +43,7 @@ public:
     parameters.erase(0, pos + 1);
     pos = parameters.find(' ');
     yoffset = std::stod(parameters.substr(0, pos));
-    parameters.erase(0, pos + 1);    
+    parameters.erase(0, pos + 1);
     pos = parameters.find(' ');
     zoffset = std::stod(parameters.substr(0, pos));
     parameters.erase(0, pos + 1);
@@ -48,80 +51,70 @@ public:
     // std::cout << cutoffenergy << ", " << discard << std::endl;
     // std::cout << xoffset << ", " << yoffset << ", " << zoffset << std::endl;
     // std::cout << parameters;
-    
+
     // std::cout << "Parameters: " << parameters << std::endl;
     setup = new CRYSetup(parameters, "./data");
 
     // Setup the CRY event generator
     gen = new CRYGenerator(setup);
-
-    // create a vector to store the CRY particle properties
-    vect = new std::vector<CRYParticle*>;
-    vect->clear();
-
   }
 
-  
+
   double randomWrapper(void) const
   {
     // std::cout << "randomwrapper" << cryseed << " " << *cryseed << std::endl;
     return openmc::prn(cryseed);
   }
 
-  // openmc::SourceSite sample(uint64_t* seed) 
+  CRYParticle* get_particle(double& energy) const
+  {
+    while (true) {
+      // If no more particles, generate more
+      if(vect.empty()) {
+        gen->genEvent(&vect);
+      }
+
+      // Get last particle on vector
+      CRYParticle* p = vect.back();
+      vect.pop_back();
+
+      double e = p->ke() * 1e6;
+      if (!discard) {
+        energy = std::min(e, cutoffenergy - 0.001);
+        return p;
+      } else if (e < cutoffenergy) {
+        energy = e;
+        return p;
+      } else {
+        delete p;
+      }
+    }
+  }
+
+
   openmc::SourceSite sample(uint64_t* seed) const
   {
-    cryseed = seed;
-    // std::cout << seed << " " << *cryseed << std::endl;
+    double E;
+    CRYParticle* p;
+#pragma omp critical(CRYGenEvent)
+    {
+      cryseed = seed;
+      p = this->get_particle(E);
+    }
 
     openmc::SourceSite particle;
-
-    // weight
     particle.particle = openmc::ParticleType::neutron;
     particle.wgt = 1.0;
     particle.delayed_group = 0;
-
-    if(vect->size() == 0) {
-      gen->genEvent(vect);
-    }
-    // else {
-    //   std::cout << "use previous particle" << std::endl;
-    // }
-    // if(vect->size() > 1) {
-    //   std::cout << vect->size() << std::endl;
-    // }
-
-    CRYParticle* p = (*vect)[0];
-    double e = p->ke() * 1e6;
-    if(discard) {
-      while(e > cutoffenergy) {
-        // std::cout << "Discarding particle, looking for particle below cutoff energy" << std::endl;
-        delete p;
-        vect->erase(vect->begin());
-        if(vect->size() == 0) {
-          gen->genEvent(vect);
-        }
-        p = (*vect)[0];
-        e = p->ke() * 1e6;
-      }
-    }
-    else {
-      if(e > cutoffenergy) {
-        e = cutoffenergy - 0.001; // be 1meV below cutoff energy
-      }
-    }
-    particle.E = e;
+    particle.surf_id = 0;
+    particle.E = E;
     particle.r.x = p->x() * 100 + xoffset;
     particle.r.y = p->y() * 100 + yoffset;
     particle.r.z = p->z() * 100 + zoffset;
     particle.u = {p->u(), p->v(), p->w()};
 
     delete p;
-    // std::cout << particle.E << std::endl;
-    // std::cout << particle.r << std::endl;
-    vect->erase(vect->begin());
     return particle;
-    
   }
 
 };
@@ -135,6 +128,6 @@ extern "C" std::unique_ptr<CustomSource> openmc_create_source(std::string parame
 {
   auto a = std::unique_ptr<CustomSource> (new CustomSource(parameters));
   a->setup->setRandomFunctionWithContext(forwarder, a.get());
-  
+
   return a;
 }
