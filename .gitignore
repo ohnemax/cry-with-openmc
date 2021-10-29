@@ -210,7 +210,7 @@ cython_debug/
 # End of https://www.toptal.com/developers/gitignore/api/c++,linux,python,cmake
 
 ## Ignore *.zip Files
- .zip
+ neu.zip
 
 ## Dont know why this folder was created
 __MACOSX
@@ -218,3 +218,5 @@ __MACOSX
 ## Crosssections
 
 xsdir_j40he
+jendl40he/
+neu/
